@@ -40,4 +40,21 @@ class ModelTrainer:
         preds = model.predict(X_test)
 
         # Evaluation
-        rmse = mea
+        rmse = mean_squared_error(y_test, preds, squared=False)
+        mae = mean_absolute_error(y_test, preds)
+
+        direction_pred = preds > 0
+        direction_actual = y_test > 0
+        direction_accuracy = np.mean(direction_pred == direction_actual)
+
+        feature_importance = dict(zip(feature_cols, model.feature_importances_))
+
+        return {
+            "model": model,
+            "predictions": preds,
+            "actual": y_test.values,
+            "rmse": rmse,
+            "mae": mae,
+            "direction_accuracy": direction_accuracy,
+            "feature_importance": feature_importance
+        }
