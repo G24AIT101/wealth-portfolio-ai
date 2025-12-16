@@ -40,7 +40,7 @@ class ModelTrainer:
         preds = model.predict(X_test)
 
         # Evaluation
-        rmse = mean_squared_error(y_test, preds, squared=False)
+        rmse = np.sqrt(mean_squared_error(y_test, preds))
         mae = mean_absolute_error(y_test, preds)
 
         direction_pred = preds > 0
