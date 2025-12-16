@@ -1,43 +1,45 @@
+import numpy as np
 import pandas as pd
-from pypfopt.efficient_frontier import EfficientFrontier
-from pypfopt.risk_models import CovarianceShrinkage
-from pypfopt.discrete_allocation import DiscreteAllocation
+from pypfopt import EfficientFrontier, risk_models, expected_returns
+
 
 class PortfolioOptimizer:
     """
-    Uses predicted returns + covariance matrix to produce:
-        - Optimal weights (max sharpe)
-        - Discrete allocation (number of shares)
+    Optimizes portfolio using Mean-Variance Optimization (Max Sharpe Ratio)
     """
 
-    def optimize(self, stock_data_dict, predicted_returns, investment_amount):
-        tickers = list(stock_data_dict.keys())
+    def optimize(self, stock_data, predicted_returns, investment_amount):
+        tickers = list(stock_data.keys())
 
-        # 1. Prepare expected returns (from model predictions)
-        exp_returns = pd.Series(predicted_returns, index=tickers)
-
-        # 2. Prepare historical data for covariance matrix
+        # Historical prices DataFrame (this is SAFE: values are Series)
         price_df = pd.DataFrame({
-            t: stock_data_dict[t]["Close"] for t in tickers
+            t: stock_data[t]["Close"] for t in tickers
         })
 
-        returns_df = price_df.pct_change().dropna()
-
         # Covariance matrix
-        cov_matrix = CovarianceShrinkage(returns_df).ledoit_wolf()
+        cov_matrix = risk_models.sample_cov(price_df)
 
-        # 3. Efficient Frontier Optimization
-        ef = EfficientFrontier(exp_returns, cov_matrix)
+        # Expected returns as Series (IMPORTANT)
+        mu = pd.Series(predicted_returns, index=tickers)
+
+        # Optimization
+        ef = EfficientFrontier(mu, cov_matrix)
         weights = ef.max_sharpe()
         cleaned_weights = ef.clean_weights()
 
-        # 4. Convert weights to share amounts
-        latest_prices = price_df.iloc[-1].to_dict()
-        da = DiscreteAllocation(cleaned_weights, latest_prices, total_portfolio_value=investment_amount)
-        allocation, leftover = da.lp_portfolio()
+        # Discrete allocation
+        latest_prices = price_df.iloc[-1]
+        allocation = {}
+        leftover_cash = investment_amount
+
+        for t in tickers:
+            amount = investment_amount * cleaned_weights.get(t, 0)
+            shares = int(amount // latest_prices[t])
+            allocation[t] = shares * latest_prices[t]
+            leftover_cash -= allocation[t]
 
         return {
-            "weights": cleaned_weights,
-            "allocation": allocation,
-            "leftover": leftover
+            "weights": cleaned_weights,        # dict
+            "allocation": allocation,          # dict
+            "leftover_cash": leftover_cash     # float
         }
