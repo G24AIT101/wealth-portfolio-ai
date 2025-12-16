@@ -4,6 +4,8 @@ from feature_engineer import FeatureEngineer
 from model_trainer import ModelTrainer
 from portfolio_optimizer import PortfolioOptimizer
 from validator import Validator
+import pandas as pd
+
 
 class WealthAdvisorAI:
     def __init__(self, amount, risk, duration_months):
@@ -57,8 +59,16 @@ class WealthAdvisorAI:
         performance = validator.backtest_portfolio(stock_data, portfolio_result["weights"])
         equal_perf = validator.equal_weight_comparison(stock_data)
 
-        print("\n=== Validation Results ===")
-        print("Model-based portfolio performance:", performance)
-        print("Equal-weight performance:", equal_perf)
+        # Convert to DataFrame for safe display & future plotting
+        performance_df = pd.DataFrame([performance])
+        equal_perf_df = pd.DataFrame([equal_perf])
 
-        return portfolio_result, performance
+        print("\n=== Validation Results ===")
+        print("Model-based portfolio performance:")
+        print(performance_df)
+
+        print("\nEqual-weight portfolio performance:")
+        print(equal_perf_df)
+
+        return portfolio_result, performance_df
+
