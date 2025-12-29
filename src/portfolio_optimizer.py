@@ -42,7 +42,13 @@ class PortfolioOptimizer:
         for t in tickers:
             weight = cleaned_weights.get(t, 0)
             amount_allocated = investment_amount * weight
+            
+            # FIX: Ensure price is a scalar float (handles single-element Series)
             price = latest_prices[t]
+            if hasattr(price, 'item'):
+                price = float(price.item())
+            else:
+                price = float(price)
             
             # FIX: Calculate Number of Shares (int)
             shares = int(amount_allocated // price)

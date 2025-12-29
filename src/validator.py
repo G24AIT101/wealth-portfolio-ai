@@ -13,7 +13,8 @@ class Validator:
         price_series_list = [stock_data_dict[t]["Close"] for t in tickers]
         price_df = pd.concat(price_series_list, axis=1, keys=tickers)
 
-        returns_df = price_df.pct_change().dropna()
+        # FIX: Set fill_method=None to avoid FutureWarning in pandas 2.0+
+        returns_df = price_df.pct_change(fill_method=None).dropna()
 
         # FIX: Handle missing keys in weights (clean_weights drops 0-weight stocks)
         # Use .get(t, 0.0) to default to 0 if ticker not in weights
