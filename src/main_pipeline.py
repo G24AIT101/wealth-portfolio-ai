@@ -97,8 +97,12 @@ class WealthAdvisorAI:
         print("\nFinal Share Allocation (Shopping List):")
         for t, s in portfolio_result["allocation"].items():
              print(f"  {t}: {s} shares")
-             
-        print(f"Leftover cash: ₹{portfolio_result['leftover_cash']:.2f}")
+        
+        # FIX: Ensure leftover_cash is treated as a float, even if it's a single-element Series
+        cash_val = portfolio_result['leftover_cash']
+        if hasattr(cash_val, 'item'):
+            cash_val = cash_val.item()
+        print(f"Leftover cash: ₹{float(cash_val):.2f}")
 
         # --------------------------------------------------
         # Step 5: Validation & Backtesting
