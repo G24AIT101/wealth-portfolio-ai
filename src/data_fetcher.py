@@ -5,17 +5,28 @@ class DataFetcher:
         self.risk_profile = risk_profile.lower()
 
     def select_stocks(self):
-        if self.risk_profile == "conservative":
-            return ["HDFCBANK.NS", "ICICIBANK.NS", "TCS.NS", "^NSEI"]
-        elif self.risk_profile == "moderate":
-            return ["RELIANCE.NS", "INFY.NS", "HDFCBANK.NS", "^NSEI"]
+        # FIX: Handle short codes (c/m/a) and full names
+        # FIX: Replace ^NSEI (Index) with NIFTYBEES.NS (ETF) so it's tradeable
+        if self.risk_profile in ["conservative", "c"]:
+            return ["HDFCBANK.NS", "ICICIBANK.NS", "TCS.NS", "NIFTYBEES.NS"]
+        elif self.risk_profile in ["moderate", "m"]:
+            return ["RELIANCE.NS", "INFY.NS", "HDFCBANK.NS", "NIFTYBEES.NS"]
         else:
+            # Aggressive or default
             return ["TATAMOTORS.NS", "MARUTI.NS", "RELIANCE.NS", "INFY.NS"]
 
     def fetch(self, years):
         stocks = self.select_stocks()
         data = {}
+        print(f"Fetching data for: {stocks} (Period: {years}y)")
         for s in stocks:
-            df = yf.download(s, period=f"{years}y")
-            data[s] = df
+            try:
+                # auto_adjust=True handles splits/dividends better
+                df = yf.download(s, period=f"{years}y", auto_adjust=True)
+                if not df.empty:
+                    data[s] = df
+                else:
+                    print(f"Warning: No data found for {s}")
+            except Exception as e:
+                print(f"Error fetching {s}: {e}")
         return data

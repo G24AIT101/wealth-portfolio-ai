@@ -6,21 +6,17 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 class ModelTrainer:
     """
     Trains Random Forest model on engineered features.
-    Uses:
-        - 90% train
-        - 10% test
-    Computes:
-        - RMSE
-        - MAE
-        - Direction Accuracy (up/down)
-        - Feature Importances
     """
 
     def train(self, df):
-        # Feature columns
+        # Feature columns must match FeatureEngineer
         feature_cols = ["MA3", "MA6", "Vol3", "Vol6", "Momentum3", "Momentum6"]
-        X = df[feature_cols]
-        y = df["target"]
+        
+        # Ensure we are training on valid data only
+        df_clean = df.dropna()
+        
+        X = df_clean[feature_cols]
+        y = df_clean["target"]
 
         # 90/10 chronological split (shuffle=False)
         X_train, X_test, y_train, y_test = train_test_split(

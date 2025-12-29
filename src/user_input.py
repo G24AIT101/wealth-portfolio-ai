@@ -13,8 +13,9 @@ class UserInput:
             "a": 1.3,
             "aggressive": 1.3,
         }
-        return mapping[self.risk]
+        # FIX: Use .get() to return a default (1.0) if the key is not found
+        return mapping.get(self.risk, 1.0)
 
     def historical_years(self):
+        # Fetch at least 3 years of data, or more for long duration
         return max(3, self.duration_months // 12)
-
