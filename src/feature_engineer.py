@@ -38,7 +38,7 @@ class FeatureEngineer:
             df["MomVolInteraction"] = df["Momentum3"] * df["Vol3"]
 
         # Target: next-period return
-        df["Target"] = df["Return"].shift(-1)
+        df["target"] = df["Return"].shift(-1)
 
         df.dropna(inplace=True)
         return df
