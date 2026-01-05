@@ -6,28 +6,30 @@ from sklearn.metrics import mean_squared_error, mean_absolute_error
 class ModelTrainer:
     """
     Trains Random Forest model on engineered features.
+    Feature-agnostic: works for baseline and risk-aware modes.
     """
 
     def train(self, df):
-        # Feature columns must match FeatureEngineer
-        feature_cols = ["MA3", "MA6", "Vol3", "Vol6", "Momentum3", "Momentum6"]
-        
-        # Ensure we are training on valid data only
+        # Clean data
         df_clean = df.dropna()
-        
-        X = df_clean[feature_cols]
+
+        # Target
         y = df_clean["target"]
 
-        # 90/10 chronological split (shuffle=False)
-        X_train, X_test, y_train, y_test = train_test_split(
-            X, y, test_size=0.1, shuffle=False
-        )
+        # Use all available features except target
+        X = df_clean.drop(columns=["target"])
 
-        # Model
+        # 90/10 chronological split (no leakage)
+        split_idx = int(0.9 * len(df_clean))
+        X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+        y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+
+        # Model (same for all experiments)
         model = RandomForestRegressor(
             n_estimators=300,
             max_depth=None,
-            random_state=42
+            random_state=42,
+            n_jobs=-1
         )
 
         model.fit(X_train, y_train)
@@ -35,7 +37,7 @@ class ModelTrainer:
         # Predictions
         preds = model.predict(X_test)
 
-        # Evaluation
+        # Evaluation metrics
         rmse = np.sqrt(mean_squared_error(y_test, preds))
         mae = mean_absolute_error(y_test, preds)
 
@@ -43,7 +45,9 @@ class ModelTrainer:
         direction_actual = y_test > 0
         direction_accuracy = np.mean(direction_pred == direction_actual)
 
-        feature_importance = dict(zip(feature_cols, model.feature_importances_))
+        feature_importance = dict(
+            zip(X.columns, model.feature_importances_)
+        )
 
         return {
             "model": model,
