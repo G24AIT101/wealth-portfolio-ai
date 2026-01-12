@@ -3,62 +3,35 @@ import pandas as pd
 
 class Validator:
     """
-    Validates portfolio performance and robustness.
-    Includes:
-    - Sharpe ratio
-    - Sortino ratio
-    - Volatility
-    - Max drawdown
-    - Rolling-window backtesting with retraining
+    Validation utilities:
+    - Sharpe
+    - Sortino
+    - Max Drawdown
+    - Rolling-window backtesting
     """
 
-    # ===============================
-    # Risk metrics
-    # ===============================
+    def sharpe_ratio(self, returns, rf=0.0):
+        return (returns.mean() - rf) / returns.std() * np.sqrt(252)
 
-    def max_drawdown(self, returns):
-        cumulative = (1 + returns).cumprod()
-        peak = cumulative.cummax()
-        drawdown = (cumulative - peak) / peak
-        return drawdown.min()
-
-    def sortino_ratio(self, returns, risk_free=0.0):
+    def sortino_ratio(self, returns, rf=0.0):
         downside = returns[returns < 0]
         if downside.std() == 0:
-            return 0.0
-        return (returns.mean() - risk_free) / downside.std()
+            return np.nan
+        return (returns.mean() - rf) / downside.std() * np.sqrt(252)
 
-    # ===============================
-    # Single-period backtest (STEP 2)
-    # ===============================
+    def max_drawdown(self, returns):
+        cum = (1 + returns).cumprod()
+        peak = cum.cummax()
+        dd = (cum - peak) / peak
+        return dd.min()
 
-    def backtest_portfolio(self, stock_data_dict, weights):
-        tickers = list(stock_data_dict.keys())
-
-        price_df = pd.concat(
-            [stock_data_dict[t]["Close"] for t in tickers],
-            axis=1,
-            keys=tickers
-        )
-
-        returns = price_df.pct_change(fill_method=None).dropna()
-
-        w = np.array([weights.get(t, 0.0) for t in tickers])
-        portfolio_returns = (returns * w).sum(axis=1)
-
-        sharpe = (portfolio_returns.mean() / portfolio_returns.std()) * np.sqrt(252) \
-                 if portfolio_returns.std() > 0 else 0
-
+    def evaluate_portfolio(self, returns):
         return {
-            "Sharpe": sharpe,
-            "Sortino": self.sortino_ratio(portfolio_returns),
-            "Volatility": portfolio_returns.std() * np.sqrt(252),
-            "Max_Drawdown": self.max_drawdown(portfolio_returns)
+            "Sharpe": self.sharpe_ratio(returns),
+            "Sortino": self.sortino_ratio(returns),
+            "Volatility": returns.std() * np.sqrt(252),
+            "Max_Drawdown": self.max_drawdown(returns)
         }
-
-    # ===============================
-    # Rolling-window backtesting (STEP 4 — FIXED)
-    # ===============================
 
     def rolling_window_backtest(
         self,
@@ -68,34 +41,23 @@ class Validator:
         test_days=126     # ~6 months
     ):
         """
-        price_df : DataFrame (Date x Tickers)
-        run_fn   : function(start_idx, end_idx) -> weights
-                   This MUST retrain + re-optimize
+        run_fn(train_price_df) -> weights dict
         """
 
         results = []
-        start = 0
 
-        while start + train_days + test_days <= len(price_df):
-            train_end = start + train_days
-            test_end = train_end + test_days
+        for start in range(0, len(price_df) - train_days - test_days, test_days):
+            train_prices = price_df.iloc[start:start + train_days]
+            test_prices = price_df.iloc[start + train_days:start + train_days + test_days]
 
-            # Train + optimize INSIDE window
-            weights = run_fn(start, train_end)
+            # 🔑 TRAIN & OPTIMIZE ONLY ON WINDOW DATA
+            weights = run_fn(train_prices)
 
-            test_prices = price_df.iloc[train_end:test_end]
-            test_returns = test_prices.pct_change(fill_method=None).dropna()
+            returns = test_prices.pct_change().dropna()
+            w = np.array([weights[c] for c in returns.columns])
+            portfolio_returns = (returns * w).sum(axis=1)
 
-            w = np.array([weights.get(t, 0.0) for t in test_returns.columns])
-            portfolio_returns = (test_returns * w).sum(axis=1)
-
-            results.append({
-                "Sharpe": (portfolio_returns.mean() / portfolio_returns.std()) * np.sqrt(252)
-                          if portfolio_returns.std() > 0 else 0,
-                "Volatility": portfolio_returns.std() * np.sqrt(252),
-                "Max_Drawdown": self.max_drawdown(portfolio_returns)
-            })
-
-            start += test_days
+            metrics = self.evaluate_portfolio(portfolio_returns)
+            results.append(metrics)
 
         return pd.DataFrame(results)
