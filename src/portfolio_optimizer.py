@@ -8,12 +8,16 @@ class PortfolioOptimizer:
     """
 
     def optimize(self, stock_data, predicted_returns, investment_amount):
-        tickers = list(stock_data.keys())
-
-        # FIX: Use pd.concat instead of pd.DataFrame(dict) to prevent 'scalar' errors
-        # This safely aligns dates across all stock dataframes
-        price_series_list = [stock_data[t]["Close"] for t in tickers]
-        price_df = pd.concat(price_series_list, axis=1, keys=tickers)
+        # Handle both dict and DataFrame inputs
+        if isinstance(stock_data, pd.DataFrame):
+            # If DataFrame, columns are tickers, rows are dates
+            price_df = stock_data.copy()
+            tickers = list(price_df.columns)
+        else:
+            # If dict, extract Close prices and create DataFrame
+            tickers = list(stock_data.keys())
+            price_series_list = [stock_data[t]["Close"] for t in tickers]
+            price_df = pd.concat(price_series_list, axis=1, keys=tickers)
 
         # Covariance matrix
         cov_matrix = risk_models.sample_cov(price_df)
