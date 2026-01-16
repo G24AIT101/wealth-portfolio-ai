@@ -47,10 +47,15 @@ class WealthAdvisorAI:
         # STEP 3: Train model per stock
         trainer = ModelTrainer()
         predicted_returns = []
+        
+        # Store predictions per stock
+        stock_predictions = {}
 
         for ticker, df in stock_frames.items():
             results = trainer.train(df)
-            predicted_returns.append(results["predictions"][-1])
+            last_prediction = results["predictions"][-1] if len(results["predictions"]) > 0 else 0
+            predicted_returns.append(last_prediction)
+            stock_predictions[ticker] = last_prediction
 
         # STEP 4: Portfolio optimization
         optimizer = PortfolioOptimizer()
@@ -60,4 +65,45 @@ class WealthAdvisorAI:
             self.user.amount
         )
 
-        return portfolio, None
+        # STEP 5: Backtesting
+        validator = Validator()
+        
+        def backtest_run_fn(train_start, train_end):
+            # Filter price data for the training window
+            train_prices = price_df.loc[train_start:train_end]
+            
+            if len(train_prices) < 100:  # Minimum data required
+                n_stocks = len(price_df.columns)
+                return {ticker: 1/n_stocks for ticker in price_df.columns}
+            
+            # Re-run feature engineering and prediction for this window
+            window_predictions = []
+            for ticker in train_prices.columns:
+                df = pd.DataFrame({"Close": train_prices[ticker]})
+                df = fe.add_features(df)
+                
+                if len(df) < 10:
+                    window_predictions.append(0)
+                    continue
+                    
+                window_results = trainer.train(df)
+                last_pred = window_results["predictions"][-1] if len(window_results["predictions"]) > 0 else 0
+                window_predictions.append(last_pred)
+            
+            # Optimize portfolio for this window
+            window_portfolio = optimizer.optimize(
+                train_prices,
+                window_predictions,
+                self.user.amount
+            )
+            
+            return window_portfolio["weights"]
+        
+        backtest_results = validator.rolling_window_backtest(
+            price_df,
+            backtest_run_fn,
+            train_days=756,
+            test_days=126
+        )
+
+        return portfolio, backtest_results
