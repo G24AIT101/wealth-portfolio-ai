@@ -14,12 +14,12 @@ class WealthAdvisorAI:
         risk,
         duration_months,
         feature_mode="baseline",
-        model_type="rf",               # <-- new parameter with default "rf"
+        model_type="rf",               # <-- new parameter
         external_price_df=None
     ):
         self.user = UserInput(amount, risk, duration_months)
         self.feature_mode = feature_mode
-        self.model_type = model_type    # <-- store it
+        self.model_type = model_type    # store it
         self.external_price_df = external_price_df
 
     def run(self):
@@ -46,8 +46,8 @@ class WealthAdvisorAI:
             df = fe.add_features(df)
             stock_frames[ticker] = df
 
-        # STEP 3: Train model per stock (use stored model_type)
-        trainer = ModelTrainer(model_type=self.model_type)   # <-- pass model_type here
+        # STEP 3: Train model per stock (using stored model_type)
+        trainer = ModelTrainer(model_type=self.model_type)
         predicted_returns = []
         stock_predictions = {}
 
@@ -65,7 +65,16 @@ class WealthAdvisorAI:
             self.user.amount
         )
 
-        # STEP 5: Backtesting
+        # STEP 5: Compute full‑history portfolio returns (for wealth curves)
+        # Use final weights to compute daily returns over entire price history
+        weights = pd.Series(portfolio["weights"])
+        # Align weights with price columns (in case of missing tickers)
+        common_tickers = price_df.columns.intersection(weights.index)
+        weights = weights[common_tickers]
+        returns = price_df[common_tickers].pct_change().dropna()
+        portfolio_returns = (returns * weights).sum(axis=1)
+
+        # STEP 6: Backtesting (rolling window) with turnover
         validator = Validator()
         
         def backtest_run_fn(train_start, train_end):
@@ -107,4 +116,5 @@ class WealthAdvisorAI:
             test_days=126
         )
 
-        return portfolio, backtest_results
+        # Return portfolio summary, backtest results, and full daily returns for plotting
+        return portfolio, backtest_results, portfolio_returns

@@ -44,44 +44,55 @@ class Validator:
         self,
         full_price_df,
         run_fn,
-        train_days=756,   # ~3 years
-        test_days=126     # ~6 months
+        train_days=756,
+        test_days=126
     ):
+        """
+        Rolling window backtest with turnover tracking.
+        
+        Returns DataFrame with columns: Sharpe, Volatility, Max_Drawdown, Sortino, Turnover
+        """
         results = []
+        all_weights = []
 
         dates = full_price_df.index
 
         for start in range(0, len(dates) - train_days - test_days, test_days):
             train_start = dates[start]
-            train_end = dates[start + train_days]
+            train_end   = dates[start + train_days]
+            test_end    = dates[start + train_days + test_days]
 
-            # 🔑 run_fn decides how to fetch + train using dates
             weights = run_fn(train_start, train_end)
+            all_weights.append(weights)
 
-            test_prices = full_price_df.loc[
-                train_end : dates[start + train_days + test_days]
-            ]
-
+            test_prices = full_price_df.loc[train_end:test_end]
             returns = test_prices.pct_change().dropna()
             w = pd.Series(weights)
 
             portfolio_returns = (returns * w).sum(axis=1)
 
+            # Turnover calculation
+            turnover = np.nan
+            if len(all_weights) > 1:
+                prev_weights = pd.Series(all_weights[-2])
+                curr_weights = pd.Series(weights)
+                all_tickers = prev_weights.index.union(curr_weights.index)
+                prev_w = prev_weights.reindex(all_tickers, fill_value=0)
+                curr_w = curr_weights.reindex(all_tickers, fill_value=0)
+                turnover = (prev_w - curr_w).abs().sum() / 2
+
             results.append({
-                "Sharpe": self.sharpe_ratio(portfolio_returns),
-                "Volatility": portfolio_returns.std() * np.sqrt(252),
+                "Sharpe":       self.sharpe_ratio(portfolio_returns),
+                "Volatility":   portfolio_returns.std() * np.sqrt(252),
                 "Max_Drawdown": self.max_drawdown(portfolio_returns),
-                "Sortino": self.sortino_ratio(portfolio_returns)
+                "Sortino":      self.sortino_ratio(portfolio_returns),
+                "Turnover":     turnover
             })
 
         return pd.DataFrame(results)
 
     @staticmethod
-    def plot_wealth_curve(returns_dict, title="Wealth Accumulation", figsize=(10,6)):
-        """
-        Plot wealth curves for multiple strategy return series.
-        returns_dict: dict {label: pd.Series of daily returns}
-        """
+    def plot_wealth_curve(returns_dict, title="Wealth Accumulation", figsize=(10, 6)):
         plt.figure(figsize=figsize)
         for label, returns in returns_dict.items():
             wealth = (1 + returns).cumprod()
@@ -94,10 +105,7 @@ class Validator:
         plt.show()
 
     @staticmethod
-    def plot_drawdowns(returns_dict, title="Drawdown Comparison", figsize=(10,6)):
-        """
-        Plot drawdown curves for multiple strategy return series.
-        """
+    def plot_drawdowns(returns_dict, title="Drawdown Comparison", figsize=(10, 6)):
         plt.figure(figsize=figsize)
         for label, returns in returns_dict.items():
             cumulative = (1 + returns).cumprod()
