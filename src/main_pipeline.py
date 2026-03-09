@@ -14,14 +14,16 @@ class WealthAdvisorAI:
         risk,
         duration_months,
         feature_mode="baseline",
+        model_type="rf",               # <-- new parameter with default "rf"
         external_price_df=None
     ):
         self.user = UserInput(amount, risk, duration_months)
         self.feature_mode = feature_mode
+        self.model_type = model_type    # <-- store it
         self.external_price_df = external_price_df
 
     def run(self):
-        print(f"\n=== Running experiment: {self.feature_mode.upper()} FEATURES ===")
+        print(f"\n=== Running experiment: {self.feature_mode.upper()} FEATURES, MODEL={self.model_type.upper()} ===")
 
         # STEP 1: Get price data
         if self.external_price_df is not None:
@@ -44,11 +46,9 @@ class WealthAdvisorAI:
             df = fe.add_features(df)
             stock_frames[ticker] = df
 
-        # STEP 3: Train model per stock
-        trainer = ModelTrainer()
+        # STEP 3: Train model per stock (use stored model_type)
+        trainer = ModelTrainer(model_type=self.model_type)   # <-- pass model_type here
         predicted_returns = []
-        
-        # Store predictions per stock
         stock_predictions = {}
 
         for ticker, df in stock_frames.items():
@@ -86,6 +86,7 @@ class WealthAdvisorAI:
                     window_predictions.append(0)
                     continue
                     
+                # Use the same trainer instance (already set to correct model_type)
                 window_results = trainer.train(df)
                 last_pred = window_results["predictions"][-1] if len(window_results["predictions"]) > 0 else 0
                 window_predictions.append(last_pred)
