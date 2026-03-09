@@ -49,7 +49,6 @@ class Validator:
     ):
         """
         Rolling window backtest with turnover tracking.
-        
         Returns DataFrame with columns: Sharpe, Volatility, Max_Drawdown, Sortino, Turnover
         """
         results = []

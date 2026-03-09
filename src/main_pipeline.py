@@ -14,12 +14,12 @@ class WealthAdvisorAI:
         risk,
         duration_months,
         feature_mode="baseline",
-        model_type="rf",               # <-- new parameter
+        model_type="rf",               # new parameter
         external_price_df=None
     ):
         self.user = UserInput(amount, risk, duration_months)
         self.feature_mode = feature_mode
-        self.model_type = model_type    # store it
+        self.model_type = model_type
         self.external_price_df = external_price_df
 
     def run(self):
@@ -66,9 +66,7 @@ class WealthAdvisorAI:
         )
 
         # STEP 5: Compute full‑history portfolio returns (for wealth curves)
-        # Use final weights to compute daily returns over entire price history
         weights = pd.Series(portfolio["weights"])
-        # Align weights with price columns (in case of missing tickers)
         common_tickers = price_df.columns.intersection(weights.index)
         weights = weights[common_tickers]
         returns = price_df[common_tickers].pct_change().dropna()
@@ -78,14 +76,12 @@ class WealthAdvisorAI:
         validator = Validator()
         
         def backtest_run_fn(train_start, train_end):
-            # Filter price data for the training window
             train_prices = price_df.loc[train_start:train_end]
             
-            if len(train_prices) < 100:  # Minimum data required
+            if len(train_prices) < 100:
                 n_stocks = len(price_df.columns)
                 return {ticker: 1/n_stocks for ticker in price_df.columns}
             
-            # Re-run feature engineering and prediction for this window
             window_predictions = []
             for ticker in train_prices.columns:
                 df = pd.DataFrame({"Close": train_prices[ticker]})
@@ -95,18 +91,15 @@ class WealthAdvisorAI:
                     window_predictions.append(0)
                     continue
                     
-                # Use the same trainer instance (already set to correct model_type)
                 window_results = trainer.train(df)
                 last_pred = window_results["predictions"][-1] if len(window_results["predictions"]) > 0 else 0
                 window_predictions.append(last_pred)
             
-            # Optimize portfolio for this window
             window_portfolio = optimizer.optimize(
                 train_prices,
                 window_predictions,
                 self.user.amount
             )
-            
             return window_portfolio["weights"]
         
         backtest_results = validator.rolling_window_backtest(
@@ -116,5 +109,5 @@ class WealthAdvisorAI:
             test_days=126
         )
 
-        # Return portfolio summary, backtest results, and full daily returns for plotting
+        # Return portfolio summary, backtest results, and full daily returns
         return portfolio, backtest_results, portfolio_returns
