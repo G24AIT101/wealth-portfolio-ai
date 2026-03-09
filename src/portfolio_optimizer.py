@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-from pypfopt import EfficientFrontier, risk_models, expected_returns
+from pypfopt import EfficientFrontier, risk_models
 
 class PortfolioOptimizer:
     """
@@ -25,18 +25,42 @@ class PortfolioOptimizer:
         # Expected returns as Series
         mu = pd.Series(predicted_returns, index=tickers)
 
-        # Optimization
-        # weight_bounds=(0, 1) means no short selling
-        ef = EfficientFrontier(mu, cov_matrix, weight_bounds=(0, 1))
-        
-        try:
-            weights = ef.max_sharpe()
-        except:
-            # Fallback if max_sharpe fails
-            print("Warning: Max Sharpe failed, falling back to min volatility.")
-            weights = ef.min_volatility()
-            
-        cleaned_weights = ef.clean_weights()
+        # Try max_sharpe with different solvers
+        weights = None
+        ef = None
+        solvers = [None, 'ECOS', 'SCS']  # None defaults to OSQP
+
+        for solver in solvers:
+            try:
+                ef = EfficientFrontier(mu, cov_matrix, weight_bounds=(0, 1))
+                weights = ef.max_sharpe(solver=solver)
+                print(f"Max Sharpe succeeded with solver {solver}")
+                break
+            except Exception as e:
+                print(f"Max Sharpe with solver {solver} failed: {e}")
+                continue
+
+        if weights is None:
+            # Fallback to min volatility
+            print("Max Sharpe failed with all solvers. Trying min volatility...")
+            for solver in solvers:
+                try:
+                    ef = EfficientFrontier(mu, cov_matrix, weight_bounds=(0, 1))
+                    weights = ef.min_volatility(solver=solver)
+                    print(f"Min volatility succeeded with solver {solver}")
+                    break
+                except Exception as e:
+                    print(f"Min volatility with solver {solver} failed: {e}")
+                    continue
+
+        if weights is None:
+            # Ultimate fallback: equal weights
+            print("All optimization attempts failed. Using equal weights.")
+            n = len(tickers)
+            equal_weights = {t: 1/n for t in tickers}
+            cleaned_weights = equal_weights
+        else:
+            cleaned_weights = ef.clean_weights()
 
         # Discrete allocation
         latest_prices = price_df.iloc[-1]
@@ -46,17 +70,17 @@ class PortfolioOptimizer:
         for t in tickers:
             weight = cleaned_weights.get(t, 0)
             amount_allocated = investment_amount * weight
-            
-            # FIX: Ensure price is a scalar float (handles single-element Series)
+
+            # Ensure price is a scalar float
             price = latest_prices[t]
             if hasattr(price, 'item'):
                 price = float(price.item())
             else:
                 price = float(price)
-            
-            # FIX: Calculate Number of Shares (int)
+
+            # Calculate Number of Shares (int)
             shares = int(amount_allocated // price)
-            
+
             # Only add to allocation if we buy at least 1 share
             if shares > 0:
                 allocation[t] = shares
