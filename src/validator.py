@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 class Validator:
     def __init__(self):
@@ -74,3 +75,39 @@ class Validator:
             })
 
         return pd.DataFrame(results)
+
+    @staticmethod
+    def plot_wealth_curve(returns_dict, title="Wealth Accumulation", figsize=(10,6)):
+        """
+        Plot wealth curves for multiple strategy return series.
+        returns_dict: dict {label: pd.Series of daily returns}
+        """
+        plt.figure(figsize=figsize)
+        for label, returns in returns_dict.items():
+            wealth = (1 + returns).cumprod()
+            plt.plot(wealth.index, wealth, label=label)
+        plt.title(title)
+        plt.xlabel("Date")
+        plt.ylabel("Wealth ($)")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
+
+    @staticmethod
+    def plot_drawdowns(returns_dict, title="Drawdown Comparison", figsize=(10,6)):
+        """
+        Plot drawdown curves for multiple strategy return series.
+        """
+        plt.figure(figsize=figsize)
+        for label, returns in returns_dict.items():
+            cumulative = (1 + returns).cumprod()
+            running_max = cumulative.expanding().max()
+            drawdown = (cumulative - running_max) / running_max * 100
+            plt.fill_between(drawdown.index, drawdown, 0, label=label, alpha=0.3)
+            plt.plot(drawdown.index, drawdown, linewidth=1)
+        plt.title(title)
+        plt.xlabel("Date")
+        plt.ylabel("Drawdown (%)")
+        plt.legend()
+        plt.grid(True)
+        plt.show()
